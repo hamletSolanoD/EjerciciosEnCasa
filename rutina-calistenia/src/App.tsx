@@ -3,18 +3,83 @@ import { Play, Pause, SkipForward, RotateCcw, Maximize, Volume2, VolumeX } from 
 import { motion, AnimatePresence } from "framer-motion";
 import './index.css';
 
-/**
- * Micrositio de rutina guiada (20 min) 100% calistenia
- * Características:
- * - Botón Iniciar que entra en pantalla completa (si el navegador lo permite)
- * - Temporizador grande por ejercicio + barra de progreso
- * - Contador de fase (Calentamiento, Fuerza/Postura, Estiramientos)
- * - Controles: Iniciar/Pausar, Siguiente, Reiniciar, Fullscreen, Sonido on/off
- * - Atajos: [Espacio] Play/Pause, [→] Siguiente, [R] Reiniciar, [F] Fullscreen, [M] Mute
- * - Animaciones SVG simples para mostrar la idea del movimiento
- * - Total 20 min: 5 min warm-up (5×60s), 10 min fuerza (2 rondas × 5×60s), 5 min estiramientos (5×60s)
- * - Sin equipo; pensado para proteger muñecas, zona lumbar y coxis
- */
+// ===== Tipado =====
+interface Exercise { key: string; title: string; cue: string; duration: number; image?: string; credit?: string }
+interface Step extends Exercise { phase: "Calentamiento" | "Fuerza" | "Estiramientos"; indexInPhase: number; totalInPhase: number }
+
+// ===== Util: fallback de imagen + crédito =====
+const PLACEHOLDER = (label: string) =>
+  `https://placehold.co/800x450/062a23/9ae6b4?text=${encodeURIComponent(label)}`;
+
+const withImg = (image: string | undefined, title: string) => image ?? PLACEHOLDER(title);
+const hostOf = (url?: string) => {
+  try { return url ? new URL(url).hostname.replace(/^www\./, '') : undefined; } catch { return undefined; }
+};
+
+// ===== Imágenes (Wikimedia Commons: usamos Special:FilePath para URL directa) =====
+// Nota: si alguna no carga en tu red, se verá el placeholder verde con el nombre del ejercicio.
+// ===== Imágenes (Wikimedia Commons, URL directa vía Special:FilePath) =====
+const IMG = {
+  breathing: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Diaphragmatic%20breathing.gif",
+    credit: "commons.wikimedia.org"
+  },
+  catcow: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Bidalasana.jpg",
+    credit: "commons.wikimedia.org"
+  },
+  shoulderRolls: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Diagram%20showing%20how%20to%20do%20shoulder%20rolls%20after%20breast%20reconstruction%20surgery%20CRUK%20151.svg",
+    credit: "Cancer Research UK via Wikimedia"
+  },
+  tspine: {
+    image: undefined, credit: undefined // no hay buen recurso libre específico; usamos placeholder
+  },
+  wristCircles: {
+    // No hay “circles” exacto libre; mejor usar una referencia de muñeca/prevención CTS
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Wrist%20stretch.jpg",
+    credit: "commons.wikimedia.org"
+  },
+  birdDog: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Birddog%20exercise.svg",
+    credit: "commons.wikimedia.org"
+  },
+  lowPlank: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Plank%20exercise.svg",
+    credit: "commons.wikimedia.org"
+  },
+  gluteBridge: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Glute-bridge.png",
+    credit: "commons.wikimedia.org"
+  },
+  wristPushups: {
+    // Reemplazo por imagen de estiramiento/carga suave de muñeca (menos confuso que push-up genérico)
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Wrist%20stretch.jpg",
+    credit: "commons.wikimedia.org"
+  },
+  doorPec: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Diagram%20showing%20how%20to%20do%20a%20chest%20stretch%20exercise%20after%20breast%20reconstruction%20surgery%20CRUK%20142.svg",
+    credit: "Cancer Research UK via Wikimedia"
+  },
+  upperTrap: {
+    // Mantengo recurso libre histórico (anterior ya funcionaba). Si quieres lo cambiamos por vector anatómico.
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/A%20treatise%20on%20orthopedic%20surgery%20(1903)%20(14578123550).jpg",
+    credit: "commons.wikimedia.org"
+  },
+  childPose: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Balasana.JPG",
+    credit: "commons.wikimedia.org"
+  },
+  wristFlex: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Exercise%20Wrist%20Flexor%20Stretch.png",
+    credit: "commons.wikimedia.org"
+  },
+  wristExt: {
+    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Exercise%20Wrist%20Extensor%20Stretch.png",
+    credit: "commons.wikimedia.org"
+  },
+};
+
 
 // ====== Definición de ejercicios ======
 const warmup: Exercise[] = [
@@ -23,30 +88,35 @@ const warmup: Exercise[] = [
     title: "Respiración diafragmática y apertura de pecho",
     cue: "Respira 5× profundo; hombros atrás, costillas se expanden.",
     duration: 60,
+    image: IMG.breathing.image, credit: IMG.breathing.credit
   },
   {
     key: "catcow",
     title: "Cat–Cow (Gato–Vaca)",
     cue: "Alterna redondear y extender la columna, lento y controlado.",
     duration: 60,
+    image: IMG.catcow.image, credit: IMG.catcow.credit
   },
   {
     key: "shoulder-rolls",
     title: "Rotaciones de hombros hacia atrás",
     cue: "Movimientos amplios; evita encoger cuello.",
     duration: 60,
+    image: IMG.shoulderRolls.image, credit: IMG.shoulderRolls.credit
   },
   {
     key: "tspine-rotation",
     title: "Movilidad torácica en 4 apoyos",
     cue: "Mano detrás de la cabeza, rota abriendo el pecho. Cambia de lado a mitad.",
     duration: 60,
+    image: IMG.tspine.image, credit: IMG.tspine.credit
   },
   {
     key: "wrist-circles",
     title: "Círculos de muñeca",
     cue: "Palmas al suelo o en el aire; gira suave ambos sentidos.",
     duration: 60,
+    image: IMG.wristCircles.image, credit: IMG.wristCircles.credit
   },
 ];
 
@@ -56,30 +126,36 @@ const strengthCore: Exercise[] = [
     title: "Retracciones escapulares (boca abajo)",
     cue: "Levanta pecho levemente y junta escápulas; no tenses cuello.",
     duration: 60,
+    image: IMG.gluteBridge.image, // ilustrativo genérico de suelo
+    credit: IMG.gluteBridge.credit
   },
   {
     key: "low-plank",
     title: "Plancha baja",
     cue: "Cadera alineada; abdomen y glúteos activos; no hundas la lumbar.",
     duration: 60,
+    image: IMG.lowPlank.image, credit: IMG.lowPlank.credit
   },
   {
     key: "bird-dog",
     title: "Bird Dog",
     cue: "Extiende brazo y pierna contrarios; pelvis estable; alterna.",
     duration: 60,
+    image: IMG.birdDog.image, credit: IMG.birdDog.credit
   },
   {
     key: "glute-bridge",
     title: "Puente de glúteo (modificado)",
     cue: "Sube cadera sin arquear lumbar; aprieta glúteos arriba.",
     duration: 60,
+    image: IMG.gluteBridge.image, credit: IMG.gluteBridge.credit
   },
   {
     key: "wrist-pushups",
     title: "Wrist push-ups suaves (en rodillas)",
     cue: "Manos hacia adelante y luego hacia atrás; rango cómodo.",
     duration: 60,
+    image: IMG.wristPushups.image, credit: IMG.wristPushups.credit
   },
 ];
 
@@ -89,40 +165,42 @@ const strengthRounds = 2;
 const cooldown: Exercise[] = [
   {
     key: "door-pec",
-    title: "Estiramiento de pectoral (pared)",
+    title: "Estiramiento de pectoral (pared/puerta)",
     cue: "Brazo en pared, gira el torso hasta sentir apertura.",
     duration: 60,
+    image: IMG.doorPec.image, credit: IMG.doorPec.credit
   },
   {
     key: "upper-trap",
     title: "Estiramiento trapecio superior",
     cue: "Oreja al hombro, hombro contrario desciende; respira.",
     duration: 60,
+    image: IMG.upperTrap.image, credit: IMG.upperTrap.credit
   },
   {
     key: "child-pose",
     title: "Postura del niño",
     cue: "Caderas a talones; alarga columna, hombros relajados.",
     duration: 60,
+    image: IMG.childPose.image, credit: IMG.childPose.credit
   },
   {
     key: "wrist-stretch-flex",
     title: "Estiramiento flexores de muñeca",
     cue: "Palma hacia abajo, tira de dedos hacia ti, suave.",
     duration: 60,
+    image: IMG.wristFlex.image, credit: IMG.wristFlex.credit
   },
   {
     key: "wrist-stretch-ext",
     title: "Estiramiento extensores de muñeca",
     cue: "Palma hacia arriba, tira de dedos hacia ti, suave.",
     duration: 60,
+    image: IMG.wristExt.image, credit: IMG.wristExt.credit
   },
 ];
 
-// Tipado
-interface Exercise { key: string; title: string; cue: string; duration: number }
-interface Step extends Exercise { phase: "Calentamiento" | "Fuerza" | "Estiramientos"; indexInPhase: number; totalInPhase: number }
-
+// ===== Programa =====
 function buildProgram(): Step[] {
   const steps: Step[] = [];
   warmup.forEach((e, i) => steps.push({ ...e, phase: "Calentamiento", indexInPhase: i + 1, totalInPhase: warmup.length }));
@@ -153,13 +231,11 @@ export default function CalisthenicsRoutineApp() {
   const elapsedTotal = useMemo(() => PROGRAM.slice(0, idx).reduce((a, s) => a + s.duration, 0) + (current.duration - remaining), [idx, remaining]);
   const totalProgress = Math.min(1, elapsedTotal / TOTAL_SECONDS);
 
-  // Tick del temporizador
   useEffect(() => {
     if (!running) return;
     intervalRef.current = window.setInterval(() => {
       setRemaining((r) => {
         if (r <= 1) {
-          // beep y siguiente
           if (!muted) beepRef.current?.play().catch(() => {});
           goNext();
           return 0;
@@ -173,7 +249,6 @@ export default function CalisthenicsRoutineApp() {
     };
   }, [running, idx, muted]);
 
-  // Atajos de teclado
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Space") { e.preventDefault(); togglePlay(); }
@@ -186,10 +261,7 @@ export default function CalisthenicsRoutineApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [idx]);
 
-  function togglePlay() {
-    setRunning((r) => !r);
-  }
-
+  function togglePlay() { setRunning((r) => !r); }
   function goNext() {
     setIdx((i) => {
       const next = Math.min(PROGRAM.length - 1, i + 1);
@@ -197,16 +269,10 @@ export default function CalisthenicsRoutineApp() {
       return next;
     });
   }
-
-  function restart() {
-    setIdx(0);
-    setRemaining(PROGRAM[0].duration);
-    setRunning(false);
-  }
-
+  function restart() { setIdx(0); setRemaining(PROGRAM[0].duration); setRunning(false); }
   async function toggleFullscreen() {
     const el = containerRef.current || document.documentElement;
-    // @ts-ignore - prefijos de navegadores
+    // @ts-ignore
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
     if (!fsEl) {
       try {
@@ -222,11 +288,7 @@ export default function CalisthenicsRoutineApp() {
       } catch {}
     }
   }
-
-  function handleStart() {
-    if (!enteredFs) toggleFullscreen();
-    setRunning(true);
-  }
+  function handleStart() { if (!enteredFs) toggleFullscreen(); setRunning(true); }
 
   return (
     <div ref={containerRef} className="min-h-screen w-full bg-gradient-to-b from-emerald-900 via-emerald-800 to-emerald-900 text-emerald-50">
@@ -263,15 +325,14 @@ export default function CalisthenicsRoutineApp() {
 
       {/* Panel principal */}
       <main className="max-w-5xl mx-auto px-4 py-8">
-        {/* Estado inicial */}
         {!running && idx === 0 ? (
           <div className="rounded-3xl bg-emerald-950/30 p-8 sm:p-10 backdrop-blur shadow-xl border border-emerald-700/30">
             <h2 className="text-2xl sm:text-3xl font-bold mb-2">Listo para empezar</h2>
-            <p className="text-emerald-200 mb-6">20 minutos guiados. Presiona <kbd className="px-2 py-1 rounded bg-emerald-700/40">Espacio</kbd> o el botón iniciar. Entraremos en modo pantalla completa para enfocarnos.</p>
+            <p className="text-emerald-200 mb-6">20 minutos guiados. Presiona <kbd className="px-2 py-1 rounded bg-emerald-700/40">Espacio</kbd> o Iniciar. Entraremos en pantalla completa.</p>
             <div className="grid sm:grid-cols-3 gap-4 text-sm">
               <InfoCard title="Estructura" text="5 min calentamiento • 10 min fuerza (2 rondas) • 5 min estiramientos" />
               <InfoCard title="Atajos" text="Espacio: Play/Pause • →: Siguiente • R: Reiniciar • F: Fullscreen • M: Mute" />
-              <InfoCard title="Seguridad" text="Muñecas y lumbar protegidas. Mantén rango cómodo y respiración fluida." />
+              <InfoCard title="Seguridad" text="Muñecas y lumbar protegidas. Rango cómodo y respiración fluida." />
             </div>
             <div className="mt-8 flex items-center gap-3">
               <button onClick={handleStart} className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-400 text-emerald-950 font-semibold hover:bg-emerald-300 transition">
@@ -287,13 +348,13 @@ export default function CalisthenicsRoutineApp() {
             step={current}
             remaining={remaining}
             running={running}
-            onToggle={togglePlay}
+            onToggle={() => setRunning(r => !r)}
             onNext={goNext}
             onRestart={restart}
           />
         )}
 
-        {/* Lista de próximos pasos */}
+        {/* Lista próximos */}
         <div className="mt-8 grid md:grid-cols-2 gap-6">
           <UpcomingList currentIdx={idx} />
           <TipsPanel />
@@ -301,7 +362,7 @@ export default function CalisthenicsRoutineApp() {
       </main>
 
       <footer className="max-w-5xl mx-auto px-4 pb-10 pt-6 text-xs text-emerald-300/90">
-        Hecho con 💚 para mantener postura, espalda y muñecas felices. — Sugerido 5–6 días/semana.
+        Hecho con 💚 para postura, espalda y muñecas felices. — 5–6 días/semana.
       </footer>
     </div>
   );
@@ -320,6 +381,12 @@ function SessionPanel({ step, remaining, running, onToggle, onNext, onRestart }:
   step: Step; remaining: number; running: boolean; onToggle: () => void; onNext: () => void; onRestart: () => void;
 }) {
   const pct = (1 - remaining / step.duration) * 100;
+  const [imgSrc, setImgSrc] = useState(withImg(step.image, step.title));
+
+  useEffect(() => {
+    setImgSrc(withImg(step.image, step.title));
+  }, [step.image, step.title, step.key]);
+
   return (
     <div className="rounded-3xl bg-emerald-950/30 p-6 sm:p-10 backdrop-blur shadow-xl border border-emerald-700/30">
       <div className="flex flex-wrap items-center gap-3 justify-between">
@@ -328,7 +395,7 @@ function SessionPanel({ step, remaining, running, onToggle, onNext, onRestart }:
       </div>
 
       <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-8 mt-6 items-center">
-        {/* Animación/visual */}
+        {/* Visual */}
         <div className="rounded-2xl bg-emerald-900/40 border border-emerald-700/30 p-4 sm:p-6">
           <div className="aspect-video rounded-xl bg-emerald-950/50 grid place-items-center overflow-hidden">
             <AnimatePresence mode="wait">
@@ -337,6 +404,24 @@ function SessionPanel({ step, remaining, running, onToggle, onNext, onRestart }:
               </motion.div>
             </AnimatePresence>
           </div>
+
+          {/* Imagen de referencia */}
+          <div className="mt-4">
+            <img
+              src={imgSrc}
+              alt={step.title}
+              className="w-full rounded-lg object-cover max-h-56"
+              onError={() => setImgSrc(PLACEHOLDER(step.title))}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+            <div className="text-[10px] text-emerald-300 mt-1">
+              {imgSrc.startsWith("https://commons.wikimedia.org") ? "Fuente: Wikimedia Commons" :
+               step.credit ? `Fuente: ${step.credit}` :
+               imgSrc.includes("placehold") ? "Referencia genérica" : hostOf(imgSrc)}
+            </div>
+          </div>
+
           <div className="mt-4">
             <h3 className="text-lg sm:text-xl font-semibold">{step.title}</h3>
             <p className="text-emerald-200 mt-1 text-sm sm:text-base">{step.cue}</p>
@@ -397,10 +482,10 @@ function TipsPanel() {
       <h4 className="text-lg font-semibold mb-3">Tips rápidos</h4>
       <ul className="text-sm text-emerald-200 space-y-2 list-disc pl-5">
         <li>Respira por la nariz y suelta por la boca; ritmo constante.</li>
-        <li>Escápulas atrás y abajo en los ejercicios de espalda (abre pecho).</li>
-        <li>Si molesta la lumbar: reduce rango, refuerza abdomen y glúteos.</li>
+        <li>Escápulas atrás y abajo en espalda (abre pecho).</li>
+        <li>Si molesta la lumbar: reduce rango y activa abdomen/glúteos.</li>
         <li>Muñecas: rango cómodo; alterna apoyo en palmas/dedos/puños si hace falta.</li>
-        <li>Durante el día: 30–60 s de apertura de pecho cada 1–2 h sientan *gloria*.</li>
+        <li>Durante el día: 30–60 s de apertura de pecho cada 1–2 h.</li>
       </ul>
     </div>
   );
@@ -418,43 +503,28 @@ function formatHMS(total: number) {
   return `${m}m ${s}s`;
 }
 
-// ====== Animaciones SVG simples por ejercicio ======
+// ====== Animaciones SVG (minimalistas) ======
 function ExerciseAnimation({ name }: { name: string }) {
-  // Cada animación es un SVG minimalista para ilustrar el patrón de movimiento
   switch (name) {
-    case "catcow":
-      return <CatCowSVG/>;
-    case "bird-dog":
-      return <BirdDogSVG/>;
-    case "low-plank":
-      return <PlankSVG/>;
-    case "glute-bridge":
-      return <GluteBridgeSVG/>;
-    case "scapular-prone":
-      return <ScapularProneSVG/>;
-    case "wrist-pushups":
-      return <WristPushupsSVG/>;
-    case "tspine-rotation":
-      return <TSpineSVG/>;
-    case "wrist-circles":
-      return <WristCirclesSVG/>;
-    case "door-pec":
-      return <DoorPecSVG/>;
-    case "upper-trap":
-      return <UpperTrapSVG/>;
-    case "child-pose":
-      return <ChildPoseSVG/>;
+    case "catcow": return <CatCowSVG/>;
+    case "bird-dog": return <BirdDogSVG/>;
+    case "low-plank": return <PlankSVG/>;
+    case "glute-bridge": return <GluteBridgeSVG/>;
+    case "scapular-prone": return <ScapularProneSVG/>;
+    case "wrist-pushups": return <WristPushupsSVG/>;
+    case "tspine-rotation": return <TSpineSVG/>;
+    case "wrist-circles": return <WristCirclesSVG/>;
+    case "door-pec": return <DoorPecSVG/>;
+    case "upper-trap": return <UpperTrapSVG/>;
+    case "child-pose": return <ChildPoseSVG/>;
     case "wrist-stretch-flex":
-    case "wrist-stretch-ext":
-      return <WristStretchSVG/>;
+    case "wrist-stretch-ext": return <WristStretchSVG/>;
     case "breathing":
     case "shoulder-rolls":
-    default:
-      return <BreathShoulderSVG/>;
+    default: return <BreathShoulderSVG/>;
   }
 }
 
-// ====== SVGs (minimalistas) ======
 function CatCowSVG() {
   return (
     <svg viewBox="0 0 200 120" className="w-full h-full">
@@ -465,8 +535,8 @@ function CatCowSVG() {
           d="M40,60 C70,20 130,20 160,60"
           stroke="currentColor" strokeWidth="6" fill="none" className="text-emerald-300"
           animate={{ d: [
-            "M40,60 C70,20 130,20 160,60", // vaca (extensión)
-            "M40,60 C70,90 130,90 160,60", // gato (flexión)
+            "M40,60 C70,20 130,20 160,60",
+            "M40,60 C70,90 130,90 160,60",
           ]}}
           transition={{ duration: 2.2, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
         />
