@@ -1,0 +1,61 @@
+/* Importa Tailwind v4 con un solo @import */
+@import "tailwindcss";
+
+/* 🎨 Paleta de colores y tipografía personalizada opcional */
+@theme {
+  --color-brand: #4F9D8D;
+  --color-secondary: #b088de;
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+/* 🌍 Estilos globales */
+body {
+  @apply bg-gradient-to-b from-emerald-900 via-emerald-800 to-emerald-900 
+         text-emerald-50 font-sans antialiased;
+}
+
+button {
+  @apply transition-colors duration-200;
+}
+
+/* 🟢 Botón principal */
+.btn-primary {
+  @apply inline-flex items-center gap-2 px-5 py-3 rounded-2xl 
+         bg-emerald-400 text-emerald-950 font-semibold 
+         hover:bg-emerald-300;
+}
+
+/* 🔵 Botón secundario */
+.btn-secondary {
+  @apply inline-flex items-center gap-2 px-4 py-3 rounded-2xl 
+         bg-emerald-700/30 hover:bg-emerald-700/50 text-emerald-50;
+}
+
+/* ⏱ Contador grande */
+.timer {
+  @apply text-6xl sm:text-7xl font-black tabular-nums tracking-tight;
+}
+
+/* 📦 Tarjetas */
+.card {
+  @apply rounded-3xl bg-emerald-950/30 p-6 sm:p-10 backdrop-blur 
+         shadow-xl border border-emerald-700/30;
+}
+
+/* 📑 Tarjeta de info */
+.info-card {
+  @apply rounded-2xl p-4 bg-emerald-900/40 border border-emerald-700/30;
+}
+
+/* 📋 Lista de tips */
+.tips-list {
+  @apply text-sm text-emerald-200 space-y-2 list-disc pl-5;
+}
+
+/* Barra de progreso */
+.progress-bar {
+  @apply w-full h-2 rounded-full bg-emerald-950/60 overflow-hidden;
+}
+.progress-fill {
+  @apply h-full bg-emerald-400 transition-[width] duration-500;
+}

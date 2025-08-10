@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, SkipForward, RotateCcw, Maximize, Volume2, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import './index.css';
 
 /**
  * Micrositio de rutina guiada (20 min) 100% calistenia
